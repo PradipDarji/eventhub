@@ -6,6 +6,8 @@ import { test, expect } from '@playwright/test';
 const USER_EMAIL    = 'rahulshetty1@gmail.com';
 const USER_PASSWORD = 'Magiclife1!';
 
+// All testcases start from here, so we can reuse the login, state reset, and booking creation steps.
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 async function login(page) {
