@@ -1,0 +1,80 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Playwright E2E Tests
+#
+# PURPOSE:
+#   Runs all Playwright tests against the live EventHub site on every push to
+#   main. Uploads the HTML report as a downloadable artifact so failures can
+#   be investigated without re-running locally.
+#
+# TARGET:
+#   https://eventhub.rahulshettyacademy.com  (set in playwright.config.ts)
+#   No local server startup required — tests run against the hosted app.
+#
+# ARTIFACT:
+#   playwright-report/  →  retained for 30 days
+#   Download from: Actions run → Summary → Artifacts → playwright-report
+# ══════════════════════════════════════════════════════════════════════════════
+
+name: Playwright E2E Tests
+
+on:
+  push:
+    branches: [main]
+
+  # Allow manual runs from the GitHub Actions UI
+  workflow_dispatch:
+
+# Cancel any in-progress run for the same branch when a new push arrives.
+concurrency:
+  group: playwright-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '21.7.1'
+
+jobs:
+  playwright:
+    name: E2E Tests (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Node.js setup ─────────────────────────────────────────────────────────
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          # Root package-lock.json owns the @playwright/test dependency
+          cache-dependency-path: package-lock.json
+
+      # ── Install root dependencies (@playwright/test) ───────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Install Chrome browser + OS-level dependencies ─────────────────────────
+      # playwright.config.ts sets channel: 'chrome' so we install Chrome (not
+      # the bundled Chromium). --with-deps installs required Linux system libs.
+      - name: Install Playwright Chrome browser
+        run: npx playwright install chrome --with-deps
+
+      # ── Run all Playwright tests ───────────────────────────────────────────────
+      # --reporter=html writes the report to playwright-report/ (config default).
+      # The job does NOT fail-fast on test failure — we always want the report.
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=html
+
+      # ── Upload HTML report as artifact ─────────────────────────────────────────
+      # `if: always()` ensures the report is uploaded even when tests fail,
+      # which is exactly when you need it most.
+      - name: Upload Playwright HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
